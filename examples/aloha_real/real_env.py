@@ -2,7 +2,7 @@
 # ruff: noqa
 import collections
 import time
-from typing import Optional, List
+from typing import Callable, Optional, List
 import dm_env
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
 from interbotix_xs_msgs.msg import JointSingleCommand
@@ -14,30 +14,47 @@ from examples.aloha_real import robot_utils
 # This is the reset position that is used by the standard Aloha runtime.
 DEFAULT_RESET_POSITION = [0, -0.96, 1.16, 0, -0.3, 0]
 
+ARM_DIM = 7  # 6 joints + 1 gripper
+BASE_DIM = 3
+STATE_DIM = 2 * ARM_DIM + BASE_DIM
+
 
 class RealEnv:
     """
-    Environment for real robot bi-manual manipulation
+    Environment for real robot bi-manual manipulation with an optional mobile base.
     Action space:      [left_arm_qpos (6),             # absolute joint position
                         left_gripper_positions (1),    # normalized gripper position (0: close, 1: open)
                         right_arm_qpos (6),            # absolute joint position
-                        right_gripper_positions (1),]  # normalized gripper position (0: close, 1: open)
+                        right_gripper_positions (1),   # normalized gripper position (0: close, 1: open)
+                        base_controls (3)]             # user-defined base/chassis controls
 
     Observation space: {"qpos": Concat[ left_arm_qpos (6),          # absolute joint position
                                         left_gripper_position (1),  # normalized gripper position (0: close, 1: open)
                                         right_arm_qpos (6),         # absolute joint position
-                                        right_gripper_qpos (1)]     # normalized gripper position (0: close, 1: open)
+                                        right_gripper_qpos (1),     # normalized gripper position (0: close, 1: open)
+                                        base_state (3)]             # user-defined base/chassis state
                         "qvel": Concat[ left_arm_qvel (6),         # absolute joint velocity (rad)
                                         left_gripper_velocity (1),  # normalized gripper velocity (pos: opening, neg: closing)
                                         right_arm_qvel (6),         # absolute joint velocity (rad)
-                                        right_gripper_qvel (1)]     # normalized gripper velocity (pos: opening, neg: closing)
+                                        right_gripper_qvel (1),     # normalized gripper velocity (pos: opening, neg: closing)
+                                        base_velocity (3)]
                         "images": {"cam_high": (480x640x3),        # h, w, c, dtype='uint8'
                                    "cam_low": (480x640x3),         # h, w, c, dtype='uint8'
                                    "cam_left_wrist": (480x640x3),  # h, w, c, dtype='uint8'
                                    "cam_right_wrist": (480x640x3)} # h, w, c, dtype='uint8'
     """
 
-    def __init__(self, init_node, *, reset_position: Optional[List[float]] = None, setup_robots: bool = True):
+    def __init__(
+        self,
+        init_node,
+        *,
+        reset_position: Optional[List[float]] = None,
+        setup_robots: bool = True,
+        base_state_fn: Callable[[], np.ndarray] | None = None,
+        base_velocity_fn: Callable[[], np.ndarray] | None = None,
+        base_effort_fn: Callable[[], np.ndarray] | None = None,
+        apply_base_action_fn: Callable[[np.ndarray], None] | None = None,
+    ):
         # reset_position = START_ARM_POSE[:6]
         self._reset_position = reset_position[:6] if reset_position else DEFAULT_RESET_POSITION
 
@@ -58,6 +75,10 @@ class RealEnv:
         self.recorder_right = robot_utils.Recorder("right", init_node=False)
         self.image_recorder = robot_utils.ImageRecorder(init_node=False)
         self.gripper_command = JointSingleCommand(name="gripper")
+        self._get_base_state = base_state_fn or (lambda: np.zeros(BASE_DIM, dtype=np.float32))
+        self._get_base_velocity = base_velocity_fn or (lambda: np.zeros(BASE_DIM, dtype=np.float32))
+        self._get_base_effort = base_effort_fn or (lambda: np.zeros(BASE_DIM, dtype=np.float32))
+        self._apply_base_action = apply_base_action_fn or (lambda _: None)
 
     def setup_robots(self):
         robot_utils.setup_puppet_bot(self.puppet_bot_left)
@@ -74,7 +95,8 @@ class RealEnv:
         right_gripper_qpos = [
             constants.PUPPET_GRIPPER_POSITION_NORMALIZE_FN(right_qpos_raw[7])
         ]  # this is position not joint
-        return np.concatenate([left_arm_qpos, left_gripper_qpos, right_arm_qpos, right_gripper_qpos])
+        base_state = self._get_base_state()
+        return np.concatenate([left_arm_qpos, left_gripper_qpos, right_arm_qpos, right_gripper_qpos, base_state])
 
     def get_qvel(self):
         left_qvel_raw = self.recorder_left.qvel
@@ -83,14 +105,16 @@ class RealEnv:
         right_arm_qvel = right_qvel_raw[:6]
         left_gripper_qvel = [constants.PUPPET_GRIPPER_VELOCITY_NORMALIZE_FN(left_qvel_raw[7])]
         right_gripper_qvel = [constants.PUPPET_GRIPPER_VELOCITY_NORMALIZE_FN(right_qvel_raw[7])]
-        return np.concatenate([left_arm_qvel, left_gripper_qvel, right_arm_qvel, right_gripper_qvel])
+        base_velocity = self._get_base_velocity()
+        return np.concatenate([left_arm_qvel, left_gripper_qvel, right_arm_qvel, right_gripper_qvel, base_velocity])
 
     def get_effort(self):
         left_effort_raw = self.recorder_left.effort
         right_effort_raw = self.recorder_right.effort
         left_robot_effort = left_effort_raw[:7]
         right_robot_effort = right_effort_raw[:7]
-        return np.concatenate([left_robot_effort, right_robot_effort])
+        base_effort = self._get_base_effort()
+        return np.concatenate([left_robot_effort, right_robot_effort, base_effort])
 
     def get_images(self):
         return self.image_recorder.get_images()
@@ -148,12 +172,13 @@ class RealEnv:
         )
 
     def step(self, action):
-        state_len = int(len(action) / 2)
-        left_action = action[:state_len]
-        right_action = action[state_len:]
+        left_action = action[:ARM_DIM]
+        right_action = action[ARM_DIM : 2 * ARM_DIM]
+        base_action = action[2 * ARM_DIM : 2 * ARM_DIM + BASE_DIM]
         self.puppet_bot_left.arm.set_joint_positions(left_action[:6], blocking=False)
         self.puppet_bot_right.arm.set_joint_positions(right_action[:6], blocking=False)
         self.set_gripper_pose(left_action[-1], right_action[-1])
+        self._apply_base_action(base_action)
         time.sleep(constants.DT)
         return dm_env.TimeStep(
             step_type=dm_env.StepType.MID, reward=self.get_reward(), discount=None, observation=self.get_observation()
@@ -161,13 +186,17 @@ class RealEnv:
 
 
 def get_action(master_bot_left, master_bot_right):
-    action = np.zeros(14)  # 6 joint + 1 gripper, for two arms
+    # 6 joints + 1 gripper per arm, followed by 3 base controls.
+    action = np.zeros(STATE_DIM, dtype=np.float32)
     # Arm actions
     action[:6] = master_bot_left.dxl.joint_states.position[:6]
     action[7 : 7 + 6] = master_bot_right.dxl.joint_states.position[:6]
     # Gripper actions
     action[6] = constants.MASTER_GRIPPER_JOINT_NORMALIZE_FN(master_bot_left.dxl.joint_states.position[6])
     action[7 + 6] = constants.MASTER_GRIPPER_JOINT_NORMALIZE_FN(master_bot_right.dxl.joint_states.position[6])
+
+    # If a mobile base is available, fill the final 3 dims before returning the action.
+    # Leaving zeros keeps backwards compatibility when no base is present.
 
     return action
 

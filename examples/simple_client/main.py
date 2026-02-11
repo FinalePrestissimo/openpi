@@ -152,7 +152,7 @@ def main(args: Args) -> None:
 
 def _random_observation_aloha() -> dict:
     return {
-        "state": np.ones((14,)),
+        "state": np.ones((17,)),
         "images": {
             "cam_high": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
             "cam_low": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),

@@ -261,7 +261,8 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
             outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
         )
         if self.use_delta_joint_actions:
-            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
+            # Convert only arm joints to deltas; grippers and base stay absolute.
+            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1, -3)
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
@@ -824,6 +825,43 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         num_train_steps=20_000,
         batch_size=64,
+    ),
+    # Custom: fine-tune pi05 on local Aloha dataset with 17-dim state/action (arms + grippers + base).
+    TrainConfig(
+        name="pi05_aloha_local17",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=17,
+            action_horizon=16,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/aloha-test",
+            adapt_to_pi=True,
+            use_delta_joint_actions=True,
+            default_prompt=None,
+            # Map dataset keys to expected aloha inputs (cam_high/left/right_wrist, state, action).
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                                "cam_right_wrist": "observation.images.cam_right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ]
+            ),
+        ),
+        # weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        weight_loader=weight_loaders.NoOpWeightLoader(),
+        batch_size=64,
+        num_train_steps=20_000,
+        log_interval=100,
+        save_interval=2000,
     ),
     #
     # Fine-tuning DROID configs.

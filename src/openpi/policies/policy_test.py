@@ -14,7 +14,7 @@ def test_infer():
     example = aloha_policy.make_aloha_example()
     result = policy.infer(example)
 
-    assert result["actions"].shape == (config.model.action_horizon, 14)
+    assert result["actions"].shape == (config.model.action_horizon, aloha_policy.STATE_DIM)
 
 
 @pytest.mark.manual
@@ -31,4 +31,4 @@ def test_broker():
     example = aloha_policy.make_aloha_example()
     for _ in range(config.model.action_horizon):
         outputs = broker.infer(example)
-        assert outputs["actions"].shape == (14,)
+        assert outputs["actions"].shape == (aloha_policy.STATE_DIM,)

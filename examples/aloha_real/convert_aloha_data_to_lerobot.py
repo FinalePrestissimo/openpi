@@ -10,9 +10,8 @@ import shutil
 from typing import Literal
 
 import h5py
-from lerobot.common.datasets.lerobot_dataset import LEROBOT_HOME
+from lerobot.common.datasets.lerobot_dataset import HF_LEROBOT_HOME
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw
 import numpy as np
 import torch
 import tqdm
@@ -55,10 +54,12 @@ def create_empty_dataset(
         "left_wrist_angle",
         "left_wrist_rotate",
         "left_gripper",
+        "vx",
+        "vy",
+        "omega",
     ]
     cameras = [
         "cam_high",
-        "cam_low",
         "cam_left_wrist",
         "cam_right_wrist",
     ]
@@ -109,8 +110,8 @@ def create_empty_dataset(
             ],
         }
 
-    if Path(LEROBOT_HOME / repo_id).exists():
-        shutil.rmtree(LEROBOT_HOME / repo_id)
+    if Path(HF_LEROBOT_HOME / repo_id).exists():
+        shutil.rmtree(HF_LEROBOT_HOME / repo_id)
 
     return LeRobotDataset.create(
         repo_id=repo_id,
@@ -181,7 +182,6 @@ def load_raw_episode_data(
             ep,
             [
                 "cam_high",
-                "cam_low",
                 "cam_left_wrist",
                 "cam_right_wrist",
             ],
@@ -209,6 +209,7 @@ def populate_dataset(
             frame = {
                 "observation.state": state[i],
                 "action": action[i],
+                "task": task,
             }
 
             for camera, img_array in imgs_per_cam.items():
@@ -233,18 +234,14 @@ def port_aloha(
     task: str = "DEBUG",
     *,
     episodes: list[int] | None = None,
-    push_to_hub: bool = True,
+    push_to_hub: bool = False,
     is_mobile: bool = False,
     mode: Literal["video", "image"] = "image",
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
 ):
-    if (LEROBOT_HOME / repo_id).exists():
-        shutil.rmtree(LEROBOT_HOME / repo_id)
+    if (HF_LEROBOT_HOME / repo_id).exists():
+        shutil.rmtree(HF_LEROBOT_HOME / repo_id)
 
-    if not raw_dir.exists():
-        if raw_repo_id is None:
-            raise ValueError("raw_repo_id must be provided if raw_dir does not exist")
-        download_raw(raw_dir, repo_id=raw_repo_id)
 
     hdf5_files = sorted(raw_dir.glob("episode_*.hdf5"))
 
@@ -262,7 +259,6 @@ def port_aloha(
         task=task,
         episodes=episodes,
     )
-    dataset.consolidate()
 
     if push_to_hub:
         dataset.push_to_hub()
