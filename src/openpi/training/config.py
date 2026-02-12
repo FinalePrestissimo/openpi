@@ -828,18 +828,16 @@ _CONFIGS = [
     ),
     # Custom: fine-tune pi05 on local Aloha dataset with 17-dim state/action (arms + grippers + base).
     TrainConfig(
-        name="pi05_aloha_local17",
+        name="pi05_mobile_17d",
         model=pi0_config.Pi0Config(
             pi05=True,
             action_dim=17,
             action_horizon=16,
         ),
         data=LeRobotAlohaDataConfig(
-            repo_id="local/aloha-test",
+            repo_id="local/mobile0212",
             adapt_to_pi=True,
             use_delta_joint_actions=True,
-            default_prompt=None,
-            # Map dataset keys to expected aloha inputs (cam_high/left/right_wrist, state, action).
             repack_transforms=_transforms.Group(
                 inputs=[
                     _transforms.RepackTransform(
@@ -851,15 +849,19 @@ _CONFIGS = [
                             },
                             "state": "observation.state",
                             "actions": "action",
+                            "prompt": "task", # 如果你的数据集里有文字指令字段
                         }
                     )
                 ]
             ),
+            base_config=DataConfig(
+                prompt_from_task=True, # 开启根据数据集自动读取指令
+            ),
         ),
-        # weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        weight_loader=weight_loaders.NoOpWeightLoader(),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         batch_size=64,
-        num_train_steps=20_000,
+        fsdp_devices=2, # 如果你使用多卡训练，务必加上
+        num_train_steps=50000, # 建议适当增加步数
         log_interval=100,
         save_interval=2000,
     ),

@@ -222,7 +222,8 @@ def populate_dataset(
 
             dataset.add_frame(frame)
 
-        dataset.save_episode(task=task)
+        # Newer LeRobotDataset.save_episode() does not take a task kwarg.
+        dataset.save_episode()
 
     return dataset
 

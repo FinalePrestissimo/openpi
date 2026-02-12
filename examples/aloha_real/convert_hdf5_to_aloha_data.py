@@ -136,6 +136,7 @@ def convert(hdf5_paths, output_path, start_index=0):
                         raise ValueError("Failed to decode JPEG image")
 
                     # imgs_array.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                    imgs_array.append(img)
 
                 return np.stack(imgs_array, axis=0)
 
