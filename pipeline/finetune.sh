@@ -16,6 +16,10 @@ export HF_LEROBOT_HOME=/mnt/pfs/pg4hw0/shaolong/openpi/lerobot
 export OPENPI_DATA_HOME=/mnt/pfs/pg4hw0/zanxin/RoboTwin-anything/RoboTwin/policy/weights/openpi
 export XDG_CACHE_HOME=/mnt/pfs/pg4hw0/keheye/control_your_robot-Xspark/policy/openpi/cache
 
+# export WANDB_API_KEY=
+export WANDB_BASE_URL=https://api.bandw.top
+export WANDB_MODE=offline 
+
 train_config_name=$1
 model_name=$2
 gpu_use=$3

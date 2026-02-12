@@ -835,9 +835,9 @@ _CONFIGS = [
             action_horizon=16,
         ),
         data=LeRobotAlohaDataConfig(
-            repo_id="local/mobile0212",
-            adapt_to_pi=True,
-            use_delta_joint_actions=True,
+            repo_id="local/shaolong_mobile0212",
+            adapt_to_pi=False,
+            use_delta_joint_actions=False,
             repack_transforms=_transforms.Group(
                 inputs=[
                     _transforms.RepackTransform(

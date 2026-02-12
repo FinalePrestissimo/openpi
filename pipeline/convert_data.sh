@@ -68,7 +68,7 @@ uv run examples/aloha_real/convert_aloha_data_to_lerobot.py \
 # 3) Compute normalization stats (optional)
 if [[ -n "$TRAIN_CONFIG_NAME" ]]; then
   printf "[3/3] Computing norm stats for config %s...\n" "$TRAIN_CONFIG_NAME"
-  uv run scripts/compute_norm_stats.py --config-name "$TRAIN_CONFIG_NAME"
+  uv run scripts/compute_norm_stats_fast.py --config-name "$TRAIN_CONFIG_NAME" --base-dir "${HF_LEROBOT_HOME}/${REPO_ID}"
 else
   printf "[3/3] Skip norm stats (train_config_name not provided).\n"
 fi
