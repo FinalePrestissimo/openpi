@@ -24,7 +24,7 @@ RAW_DIR=${1:?"raw_hdf5_dir is required"}
 REPO_ID=${2:?"repo_id is required"}
 shift 2
 
-RDT_OUT_DIR="dataset/rdt"
+RDT_OUT_DIR="dataset/converted/rdt"
 TRAIN_CONFIG_NAME="pi05_mobile_17d"
 
 while [[ $# -gt 0 ]]; do
