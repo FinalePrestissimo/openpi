@@ -831,7 +831,9 @@ _CONFIGS = [
         name="pi05_mobile_17d",
         model=pi0_config.Pi0Config(
             pi05=True,
-            action_dim=17,
+            # Model internal dim should stay 32 to match pi05_base checkpoint.
+            # Dataset semantic dim is 17 (2x7 arm + 3 base) and is padded by PadStatesAndActions.
+            action_dim=32,
             action_horizon=16,
         ),
         data=LeRobotAlohaDataConfig(
