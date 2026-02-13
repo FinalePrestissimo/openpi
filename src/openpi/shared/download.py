@@ -85,6 +85,12 @@ def maybe_download(url: str, *, force_download: bool = False, **kwargs) -> pathl
             scratch_path = local_path.with_suffix(".partial")
             _download_fsspec(url, scratch_path, **kwargs)
 
+            if not scratch_path.exists():
+                raise FileNotFoundError(
+                    f"Download did not produce expected temporary path: {scratch_path}. "
+                    f"Please check network access for {url}."
+                )
+
             shutil.move(scratch_path, local_path)
             _ensure_permissions(local_path)
 
@@ -109,11 +115,18 @@ def _download_fsspec(url: str, local_path: pathlib.Path, **kwargs) -> None:
         total_size = info["size"]
     with tqdm.tqdm(total=total_size, unit="iB", unit_scale=True, unit_divisor=1024) as pbar:
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(fs.get, url, local_path, recursive=is_dir)
+        future = executor.submit(fs.get, url, str(local_path), recursive=is_dir)
         while not future.done():
-            current_size = sum(f.stat().st_size for f in [*local_path.rglob("*"), local_path] if f.is_file())
+            if local_path.exists():
+                current_size = sum(f.stat().st_size for f in [*local_path.rglob("*"), local_path] if f.is_file())
+            else:
+                current_size = 0
             pbar.update(current_size - pbar.n)
             time.sleep(1)
+
+        # Re-raise any exception from fs.get so callers don't see a misleading
+        # "<path>.partial not found" error during the final move step.
+        future.result()
         pbar.update(total_size - pbar.n)
 
 
