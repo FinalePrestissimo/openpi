@@ -863,7 +863,48 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         batch_size=64,
         fsdp_devices=2, # 如果你使用多卡训练，务必加上
-        num_train_steps=50000, # 建议适当增加步数
+        num_train_steps=100000, # 建议适当增加步数
+        log_interval=100,
+        save_interval=2000,
+    ),
+    # Use Behavior ckpt as base
+    TrainConfig(
+        name="pi05_mobile_17d_behavior",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            # Model internal dim should stay 32 to match pi05_base checkpoint.
+            # Dataset semantic dim is 17 (2x7 arm + 3 base) and is padded by PadStatesAndActions.
+            action_dim=32,
+            action_horizon=16,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/shaolong_mobile0212",
+            adapt_to_pi=False,
+            use_delta_joint_actions=False,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                                "cam_right_wrist": "observation.images.cam_right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "prompt": "task", # 如果你的数据集里有文字指令字段
+                        }
+                    )
+                ]
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True, # 开启根据数据集自动读取指令
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("hf://IliaLarchenko/behavior_submission/checkpoint_1/params"),
+        batch_size=64,
+        fsdp_devices=2, # 如果你使用多卡训练，务必加上
+        num_train_steps=100000, # 建议适当增加步数
         log_interval=100,
         save_interval=2000,
     ),
