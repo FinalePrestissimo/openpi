@@ -65,7 +65,6 @@ map = {
     "cam_left_wrist": "cam_left_wrist.color",
     "cam_right_wrist": "cam_right_wrist.color",
     "qpos": ["left_arm.joint","left_arm.gripper","right_arm.joint","right_arm.gripper", "slamware.move_velocity"],
-    "action": ["left_arm.joint","left_arm.gripper","right_arm.joint","right_arm.gripper", "slamware.move_velocity"],
 }
 
 def images_encoding(imgs):
