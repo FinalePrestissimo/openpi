@@ -908,6 +908,52 @@ _CONFIGS = [
         log_interval=100,
         save_interval=2000,
     ),
+    # Debug-only config for 17d mobile training. 
+    TrainConfig(
+        name="pi05_mobile_17d_debug",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=32,
+            action_horizon=16,
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="local/mobile0212_debug",
+            adapt_to_pi=True,
+            use_delta_joint_actions=True,
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                                "cam_right_wrist": "observation.images.cam_right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                            "prompt": "task",
+                        }
+                    )
+                ]
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=2000,
+            peak_lr=1e-5,
+            decay_steps=20000,
+            decay_lr=1e-6,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=0.3),
+        batch_size=32,
+        fsdp_devices=1,
+        num_train_steps=100000,
+        log_interval=20,
+        save_interval=500,
+    ),
     #
     # Fine-tuning DROID configs.
     #
