@@ -13,8 +13,8 @@ class AlohaInputs(transforms.DataTransformFn):
 
     Expected inputs:
     - images: dict[name, img] where img is [channel, height, width]. name must be in EXPECTED_CAMERAS.
-    - state: [14]
-    - actions: [action_horizon, 14]
+    - state: [17]
+    - actions: [action_horizon, 17]
     """
 
     # If true, this will convert the joint and gripper values from the standard Aloha space to
@@ -81,14 +81,14 @@ class AlohaOutputs(transforms.DataTransformFn):
     adapt_to_pi: bool = True
 
     def __call__(self, data: dict) -> dict:
-        # Only return the first 14 dims.
-        actions = np.asarray(data["actions"][:, :14])
+        # Only return the first 17 dims.
+        actions = np.asarray(data["actions"][:, :17])
         return {"actions": actions}
 
 
 def _decode_aloha(data: dict) -> dict:
-    # state is [left_arm_joint_angles, left_arm_gripper, right_arm_joint_angles, right_arm_gripper]
-    # dim sizes: [6, 1, 6, 1]
+    # state is [left_arm_joint_angles, left_arm_gripper, right_arm_joint_angles, right_arm_gripper, base_state]
+    # dim sizes: [6, 1, 6, 1, 3]
     state = np.asarray(data["state"])
 
     def convert_image(img):
